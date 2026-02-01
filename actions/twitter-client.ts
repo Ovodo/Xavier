@@ -22,7 +22,6 @@ interface TweetDocument {
     likeCount: number | null;
     viewCount: number | null;
     url: string;
-    savedAt: string;
 }
 
 
@@ -145,13 +144,7 @@ export async function saveScrapedToMongo(username: string, tweets: ScrapedTweet[
         const db = client.db('Xavier');
         const collection = db.collection<TweetDocument>(username);
 
-        // Create indexes for efficient querying
-        // This is idempotent - MongoDB won't recreate if indexes already exist
-        await collection.createIndex({ createdAt: -1 }); // For date filtering on posts
-        await collection.createIndex({ postedAt: -1 }); // For date filtering on reposts
-        await collection.createIndex({ savedAt: -1 }); // For sort order (insertion chronology)
-        // Note: _id is automatically indexed by MongoDB, no need to create index
-
+        // Database was already cleared before scraping, just insert new tweets
         // Prepare tweets for MongoDB
         const currentTime = new Date().toISOString();
         const tweetsToSave: TweetDocument[] = tweets.map(t => ({
@@ -170,19 +163,16 @@ export async function saveScrapedToMongo(username: string, tweets: ScrapedTweet[
             likeCount: t.like_count || null,
             viewCount: t.view_count || null,
             url: t.url,
-            savedAt: currentTime
         }));
 
-        // Bulk upsert tweets using updateOne with $set and $setOnInsert
-        // This ensures savedAt only gets set on first insert, preserving discovery order
+        // Upsert tweets using bulkWrite to avoid hanging on duplicates
         const bulkOps = tweetsToSave.map(tweet => {
-            const { _id, savedAt, ...updateFields } = tweet;
+            const { _id, ...updateFields } = tweet;
             return {
                 updateOne: {
                     filter: { _id },
                     update: {
-                        $set: updateFields, // Update all fields on every upsert
-                        $setOnInsert: { savedAt } // Only set savedAt on first insert
+                        $set: updateFields,
                     },
                     upsert: true
                 }
@@ -258,5 +248,27 @@ export async function getMostRecentTweetId(username: string): Promise<string | n
     } catch (error) {
         console.error('[MongoDB] Error getting most recent tweet ID:', error);
         return null;
+    }
+}
+
+export async function clearDatabase(username: string): Promise<{ success: boolean; deletedCount: number }> {
+    try {
+        const client = await clientPromise;
+        const db = client.db('Xavier');
+        const collection = db.collection<TweetDocument>(username);
+
+        const deleteResult = await collection.deleteMany({});
+        console.log(`[MongoDB] Cleared ${deleteResult.deletedCount} tweets for @${username}`);
+
+        return {
+            success: true,
+            deletedCount: deleteResult.deletedCount
+        };
+    } catch (error) {
+        console.error('[MongoDB] Error clearing database:', error);
+        return {
+            success: false,
+            deletedCount: 0
+        };
     }
 }

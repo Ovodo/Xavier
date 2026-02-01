@@ -1,7 +1,7 @@
 'use server';
 
 import { scrapeTwitter } from '@/lib/twitter-scraper';
-import { saveScrapedToMongo, getMostRecentTweetDate, getMostRecentTweetId } from '@/actions/twitter-client';
+import { saveScrapedToMongo, getMostRecentTweetDate, getMostRecentTweetId, clearDatabase } from '@/actions/twitter-client';
 
 const authCookies = [
     {
@@ -20,7 +20,6 @@ const authCookies = [
         secure: true
     }
 ];
-console.log(process.env.CT0, "CT0 IN SCRAPER ACTIONS");
 
 export async function runScraper(username: string, daysBack?: number) {
     const startTime = Date.now();
@@ -28,7 +27,7 @@ export async function runScraper(username: string, daysBack?: number) {
     // Calculate smart daysBack if not provided
     let calculatedDaysBack = daysBack;
     if (!calculatedDaysBack) {
-        // Check for most recent tweet with created_at (not reposts)
+        // Check for most recent tweet with created _at (not reposts)
         const mostRecentDate = await getMostRecentTweetDate(username.trim());
 
         if (mostRecentDate) {
@@ -39,13 +38,16 @@ export async function runScraper(username: string, daysBack?: number) {
             calculatedDaysBack = daysSince + 1; // At least 7 days, add 5 day overlap
             console.log(`[Server Action] Most recent tweet: ${mostRecentDate}, fetching ${calculatedDaysBack} days (${daysSince} + 5 day overlap)`);
         } else {
-            // No previous tweets, fetch 3 months (90 days)
+            // No previous tweets, fetch 1 month (30 days)
             calculatedDaysBack = 30;
             console.log(`[Server Action] No previous tweets found, fetching initial 90 days`);
         }
     }
 
     console.log(`[Server Action] Starting scraper for @${username}, daysBack=${calculatedDaysBack}`);
+
+    // Clear the database before fetching for comparison
+    await clearDatabase(username.trim());
 
     // Get most recent tweet ID from database for early termination check
     const lastKnownTweetId = await getMostRecentTweetId(username.trim());
@@ -77,6 +79,7 @@ export async function runScraper(username: string, daysBack?: number) {
                 mongoSaved: 0,
             };
         }
+
 
         const mongoResult = await saveScrapedToMongo(username.trim(), result.tweets);
         if (!mongoResult.success) {

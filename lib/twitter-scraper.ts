@@ -310,8 +310,8 @@ export async function scrapeTwitter(options: ScrapeOptions): Promise<ScrapeRespo
 
             console.log(`[Scraper] Iteration ${iterations}: collected ${collectedById.size} tweets`);
 
-            if (noNewCount >= 30) {
-                stopReason = 'No new tweets after 30 scrolls';
+            if (noNewCount >= 15) {
+                stopReason = 'No new tweets after 15 scrolls';
                 console.log(`[Scraper] ${stopReason}, stopping`);
                 break;
             }

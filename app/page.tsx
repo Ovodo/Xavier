@@ -284,7 +284,7 @@ export default function Page() {
     setBusy(true);
     setStatus("Fetching tweets…");
     try {
-      const result = await runScraper(username.trim(), undefined);
+      const result = await runScraper(username.trim(), 30);
 
       if (!result.success) {
         throw new Error(result.error || "Scrape failed");
