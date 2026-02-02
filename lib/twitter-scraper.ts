@@ -31,12 +31,13 @@ export async function scrapeTwitter(options: ScrapeOptions): Promise<ScrapeRespo
     const startTime = Date.now();
     const { username, userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', cookies = [], daysBack = 7, lastKnownTweetId = null } = options;
     const targetUrl = `https://x.com/${encodeURIComponent(username)}`;
-    const executablePath = "https://github.com/Sparticuz/chromium/releases/download/v133.0.0/chromium-v133.0.0-pack.tar"
+    const remoteExecutablePath = "https://github.com/Sparticuz/chromium/releases/download/v133.0.0/chromium-v133.0.0-pack.tar"
 
 
     let browser: any;
 
     if (process.env.NODE_ENV === 'production') {
+        const executablePath = await chromium.executablePath(remoteExecutablePath);
 
         browser = await puppeteer.launch({
             executablePath,
