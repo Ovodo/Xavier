@@ -61,8 +61,28 @@ export async function scrapeTwitter(options: ScrapeOptions): Promise<ScrapeRespo
 
     try {
         const page = await browser.newPage();
+        page.setDefaultTimeout(60000);
+        page.setDefaultNavigationTimeout(60000);
         await page.setViewport({ width: 1920, height: 1080 });
         await page.setUserAgent(userAgent);
+
+        const safeEvaluate = async <T>(fn: () => T, retries = 2): Promise<T> => {
+            let lastError: unknown;
+            for (let attempt = 0; attempt <= retries; attempt += 1) {
+                try {
+                    return await page.evaluate(fn);
+                } catch (error) {
+                    const message = String((error as Error)?.message || error);
+                    const isDetached = message.includes('detached Frame') || message.includes('Execution context was destroyed') || message.includes('Target closed');
+                    if (!isDetached || attempt === retries) {
+                        throw error;
+                    }
+                    lastError = error;
+                    await new Promise(r => setTimeout(r, 1500));
+                }
+            }
+            throw lastError;
+        };
 
         // Fill cookies if provided, and ensure they work for both domains
         if (cookies.length > 0) {
@@ -70,7 +90,7 @@ export async function scrapeTwitter(options: ScrapeOptions): Promise<ScrapeRespo
                 { ...c, domain: '.x.com' },
                 { ...c, domain: '.twitter.com' }
             ]);
-            await browser.setCookie(...extendedCookies);
+            await page.setCookie(...extendedCookies);
         }
 
         console.log(`[Scraper] Navigating to ${targetUrl}...`);
@@ -96,7 +116,7 @@ export async function scrapeTwitter(options: ScrapeOptions): Promise<ScrapeRespo
 
         while (iterations < maxIterations) {
             iterations += 1;
-            const batch = await page.evaluate(() => {
+            const batch = await safeEvaluate(() => {
                 const container = document.querySelector('[aria-label*="Timeline"]') || document.querySelector('section[role="region"]');
                 if (!container) return [];
                 const articles = Array.from(container.querySelectorAll('article'));
@@ -362,7 +382,7 @@ export async function scrapeTwitter(options: ScrapeOptions): Promise<ScrapeRespo
 
             // Scroll incrementally to avoid missing tweets
             // Instead of jumping to the very bottom, scroll by viewport height
-            await page.evaluate(() => {
+            await safeEvaluate(() => {
                 window.scrollBy(0, window.innerHeight * 2.5); // Scroll 250% of viewport height
             });
 
