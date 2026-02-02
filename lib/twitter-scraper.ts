@@ -1,7 +1,9 @@
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
+import devPuppeteer from "puppeteer"
 import { writeFileSync } from 'fs';
 import { join } from 'path';
 import type { ScrapedTweet, TweetKind } from './types';
+import chromium from '@sparticuz/chromium-min';
 
 export interface ScrapeOptions {
     username: string;
@@ -29,15 +31,32 @@ export async function scrapeTwitter(options: ScrapeOptions): Promise<ScrapeRespo
     const startTime = Date.now();
     const { username, userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', cookies = [], daysBack = 7, lastKnownTweetId = null } = options;
     const targetUrl = `https://x.com/${encodeURIComponent(username)}`;
+    const executablePath = "https://github.com/Sparticuz/chromium/releases/download/v133.0.0/chromium-v133.0.0-pack.tar"
 
-    const browser = await puppeteer.launch({
-        headless: true,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--window-size=1920,1080'
-        ],
-    })
+
+    let browser: any;
+
+    if (process.env.NODE_ENV === 'production') {
+
+        browser = await puppeteer.launch({
+            executablePath,
+            headless: true,
+            args: [
+                ...chromium.args,
+                '--no-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--single-process',
+                '--disable-setuid-sandbox',
+            ],
+            ignoreDefaultArgs: ['--disable-extensions'],
+        })
+    } else {
+        browser = await devPuppeteer.launch({
+            headless: true,
+
+        });
+    }
 
     try {
         const page = await browser.newPage();
